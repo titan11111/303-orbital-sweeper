@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000510">
+<title>ORBITAL SWEEPER - 宇宙ゴミ破壊作戦</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;overscroll-behavior:none;position:fixed;background:#000;font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;color:#cfe8ff;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;touch-action:none}
+  canvas{display:block;position:fixed;inset:0;z-index:0}
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+  .panel{position:absolute;padding:8px 14px;background:linear-gradient(135deg,rgba(10,30,60,.55),rgba(0,10,25,.35));border:1px solid rgba(120,200,255,.35);border-radius:4px;backdrop-filter:blur(2px);text-shadow:0 0 6px rgba(80,180,255,.8);letter-spacing:.08em}
+  #scoreBox{top:14px;left:14px}
+  #hiBox{top:14px;right:14px;text-align:right}
+  .lbl{font-size:10px;opacity:.7}
+  .val{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+  #hullBox{bottom:16px;left:14px;width:230px}
+  .bar{height:8px;background:rgba(255,255,255,.1);border:1px solid rgba(120,200,255,.4);margin-top:4px;overflow:hidden}
+  .bar>div{height:100%;width:100%;background:linear-gradient(90deg,#29f,#6ff);transition:width .15s}
+  #hullFill.low{background:linear-gradient(90deg,#f22,#f84)}
+  #wpnBox{bottom:16px;right:14px;text-align:right;min-width:150px}
+  #distBox{top:70px;left:14px;font-size:11px;opacity:.8}
+  #bossBox{top:14px;left:50%;transform:translateX(-50%);width:min(420px,50vw);display:none;text-align:center;border-color:rgba(255,80,80,.6)}
+  #bossBox .bar>div{background:linear-gradient(90deg,#f24,#f9a)}
+  #bossBox .lbl{color:#ff9aa8;opacity:1}
+  #warn{position:absolute;top:28%;left:0;right:0;text-align:center;font-size:clamp(20px,4vw,42px);font-weight:900;color:#ff3050;letter-spacing:.2em;text-shadow:0 0 12px #f03,0 0 30px #f03;display:none;animation:blink .45s steps(2) infinite}
+  #warn small{display:block;font-size:.4em;letter-spacing:.3em;color:#ffb0b8}
+  @keyframes blink{50%{opacity:.25}}
+  #reticle{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border:1px solid rgba(120,255,220,.7);border-radius:50%;box-shadow:0 0 8px rgba(80,255,200,.5)}
+  #reticle::before,#reticle::after{content:"";position:absolute;background:rgba(120,255,220,.85)}
+  #reticle::before{left:50%;top:-8px;bottom:-8px;width:1px}
+  #reticle::after{top:50%;left:-8px;right:-8px;height:1px}
+  #dmg{position:fixed;inset:0;pointer-events:none;z-index:4;background:radial-gradient(ellipse at center,transparent 45%,rgba(255,0,30,.55));opacity:0;transition:opacity .35s}
+  #popups{position:absolute;inset:0}
+  .pop{position:absolute;font-weight:800;font-size:15px;color:#fff;text-shadow:0 0 8px #0cf;transform:translate(-50%,-50%);animation:rise .9s ease-out forwards}
+  @keyframes rise{to{transform:translate(-50%,-160%);opacity:0}}
+  .screen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse at center,rgba(0,10,30,.35),rgba(0,0,0,.8));pointer-events:none}
+  .screen .btn,.screen button{pointer-events:auto}
+  .title{font-size:clamp(34px,8vw,84px);font-weight:900;letter-spacing:.12em;background:linear-gradient(180deg,#fff,#7cf 55%,#28f);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 18px rgba(60,160,255,.7))}
+  .sub{margin:8px 0 26px;font-size:clamp(13px,2.4vw,18px);letter-spacing:.4em;color:#9cd}
+  .btn{pointer-events:auto;cursor:pointer;padding:14px 46px;font-size:18px;font-weight:800;letter-spacing:.3em;color:#001;background:linear-gradient(180deg,#9ff,#3af);border:none;border-radius:3px;box-shadow:0 0 24px rgba(60,180,255,.7);transition:transform .1s}
+  .btn:hover{transform:scale(1.06)}
+  .howto{margin-top:26px;font-size:13px;line-height:1.9;color:#9bd;opacity:.9}
+  .howto b{color:#fff}
+  #loading{font-size:14px;letter-spacing:.3em;color:#7ac;margin-top:18px}
+  #over{display:none}
+  #over .title{background:linear-gradient(180deg,#fff,#f88 55%,#f24);-webkit-background-clip:text;background-clip:text}
+  #finalScore{font-size:28px;margin:10px 0 24px;color:#fff}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<button type="button" id="openBtn" data-act="start" aria-label="開始" style="position:fixed;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);width:48px;height:48px;opacity:0.02;border:0;padding:0;z-index:4">開始</button>
+<canvas id="game" width="390" height="844" aria-label="ゲーム画面"></canvas>
+<div id="dmg"></div>
+<div id="hud" style="display:none">
+  <div id="reticle"></div>
+  <div id="popups"></div>
+  <div class="panel" id="scoreBox"><div class="lbl">SCORE</div><div class="val" id="score">0</div></div>
+  <div class="panel" id="distBox">回収デブリ: <span id="kills">0</span> ／ 航行距離: <span id="dist">0</span> km</div>
+  <div class="panel" id="hiBox"><div class="lbl">HI-SCORE</div><div class="val" id="hi">0</div></div>
+  <div class="panel" id="bossBox"><div class="lbl">⚠ 超巨大UFO「MOTHERSHIP」</div><div class="bar"><div id="bossFill"></div></div></div>
+  <div class="panel" id="hullBox"><div class="lbl">HULL INTEGRITY <span id="hullTxt">100%</span></div><div class="bar"><div id="hullFill"></div></div></div>
+  <div class="panel" id="wpnBox"><div class="lbl">WEAPON</div><div id="wpn" style="font-size:15px;font-weight:700">PULSE LASER</div></div>
+  <div id="warn">⚠ WARNING ⚠<small>超巨大未確認飛行物体 接近中</small></div>
+</div>
+
+<div class="screen" id="start">
+  <div class="title">ORBITAL SWEEPER</div>
+  <div class="sub">宇 宙 ゴ ミ 破 壊 作 戦</div>
+  <button type="button" class="btn" id="startBtn">LAUNCH</button>
+  <div id="loading">タップで宇宙空間を生成…</div>
+  <div class="howto">
+    <b>移動</b>：マウス / WASD・矢印キー / タッチでドラッグ<br>
+    <b>射撃</b>：クリック長押し / スペース（スマホはタッチ中オート連射）<br>
+    宇宙ゴミを破壊しろ！巨大UFOの <b style="color:#f68">赤い照準線</b> が見えたら即回避！<br>
+    <span style="color:#6f9">緑</span>=修理　<span style="color:#6cf">青</span>=3WAY　<span style="color:#fc6">金</span>=ラピッド
+  </div>
+</div>
+
+<div class="screen" id="over">
+  <div class="title">MISSION FAILED</div>
+  <div id="finalScore">SCORE 0</div>
+  <button type="button" class="btn" id="retryBtn">RETRY</button>
+</div>
+
+<script>
+let pendingStart = false;
+function bootGame(ev) {
+  if (window.__ogReady) {
+    window.__ogStart?.();
+    return;
+  }
+  pendingStart = ev && ev.target && ev.target.id !== 'openBtn';
+  if (window.__ogBoot) return;
+  window.__ogBoot = true;
+  import('./game.js').then(() => {
+    window.__ogReady = true;
+    if (pendingStart) window.__ogStart?.();
+  }).catch(() => {
+    window.__ogBoot = false;
+    const el = document.getElementById('loading');
+    if (el) el.textContent = '読み込みに失敗しました。通信を確認して再試行してください。';
+  });
+}
+document.getElementById('openBtn').addEventListener('click', bootGame);
+document.getElementById('startBtn').addEventListener('click', bootGame);
+document.getElementById('retryBtn').addEventListener('click', () => {
+  if (window.__ogReady) window.__ogStart?.();
+  else bootGame({ target: document.getElementById('retryBtn') });
+});
+</script>
+</body>
+</html>
